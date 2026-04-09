@@ -1,20 +1,18 @@
-import asyncio
-import csv,time
+import pycurl
+import csv
+import time
+import sys
+import certifi
 from datetime import datetime
-from colorama import Fore, Style, init
+from colorama import Fore, Style, init, Back
 
 init(autoreset=True)
 
-SUCCESS = Fore.GREEN
-ERROR = Fore.RED
-INFO = Fore.CYAN
-HIGHLIGHT = Fore.MAGENTA
-MUTED = Fore.LIGHTBLACK_EX
-RESET = Style.RESET_ALL
-ORANGE = "\033[38;5;208m"
-BRIGHT_GREEN = "\033[38;5;82m"
-SOFT_GREEN = "\033[38;5;120m"
+# Colors
+SUCCESS, ERROR, INFO = Fore.GREEN, Fore.RED, Fore.CYAN
+HIGHLIGHT, MUTED = Fore.MAGENTA, Fore.LIGHTBLACK_EX
 REAL_ORANGE = "\033[38;2;255;140;0m"
+
 stats_data = []
 
 def print_banner():
@@ -30,83 +28,124 @@ def print_banner():
 {Style.DIM}{Fore.WHITE}by Qudratillo Salohiddinov{Style.RESET_ALL}
 """
     print(banner)
-    time.sleep(2)
 
-print_banner()
-# Async request
-async def send_request(request_id, target_ip, target_port):
-    send_time = asyncio.get_event_loop().time()
-    status_code = "0"
-    status_msg = "failed"
-    error_detail = "None"
-    latency = 0
-    sent_len = 0
+def run_stress_test(target_ip, target_port, total_reqs):
+    url = f"http://{target_ip}:{target_port}/"
+    
+    # OS SAFEGUARDS: Keep concurrent sockets high but below default OS limits (usually 1024)
+    MAX_CONCURRENT = 800 
+    
+    multi = pycurl.CurlMulti()
+    # Enable HTTP Pipelining and Multiplexing for massive speed increase
+    multi.setopt(pycurl.M_PIPELINING, 3) 
+    multi.setopt(pycurl.M_MAX_TOTAL_CONNECTIONS, MAX_CONCURRENT)
+    
+    pending_ids = list(range(total_reqs))
+    active_handles = {}
+    processed = 0
+    start_bench = time.perf_counter()
 
-    try:
-        reader, writer = await asyncio.open_connection(target_ip, target_port)
-        request = f"GET / HTTP/1.1\r\nHost: {target_ip}\r\nConnection: close\r\n\r\n"
-        encoded_request = request.encode()
-        sent_len = len(encoded_request)
+    print(f"{INFO}{Style.BRIGHT}Nishon manzili:{Fore.MAGENTA} {url}")
+    print(f"{INFO}{Style.BRIGHT}Bosim darajasi:{Fore.RESET} {total_reqs} ta so'rov\n")
 
-        start = asyncio.get_event_loop().time()
-        writer.write(encoded_request)
-        await writer.drain()
-        data = await reader.read(1024)
-        latency = asyncio.get_event_loop().time() - start
-
-        if data:
-            status_msg = "success"
+    while processed < total_reqs:
+        # 1. Fill the pool - Only add what the OS can handle
+        while len(active_handles) < MAX_CONCURRENT and pending_ids:
+            req_id = pending_ids.pop(0)
+            c = pycurl.Curl()
+            c.setopt(pycurl.URL, url)
+            c.setopt(pycurl.TIMEOUT, 2) # Low timeout to cycle through failed ports faster
+            c.setopt(pycurl.NOBODY, True) 
+            c.setopt(pycurl.TCP_KEEPALIVE, 1)
+            c.setopt(pycurl.TCP_NODELAY, 1) # Disable Nagle's algorithm for instant packet firing
+            
+            # Metadata
+            c.req_id = req_id
+            c.start_time = time.perf_counter()
+            
             try:
-                status_code = data.decode().split()[1]
-            except IndexError:
-                status_code = "unknown"
+                multi.add_handle(c)
+                active_handles[c] = req_id
+            except pycurl.error:
+                pending_ids.insert(0, req_id) # Put back if OS refused
+                break
 
-        writer.close()
-        await writer.wait_closed()
+        # 2. Execute with minimal delay
+        while True:
+            ret, _ = multi.perform()
+            if ret != pycurl.E_CALL_MULTI_PERFORM:
+                break
 
-    except Exception as e:
-        latency = asyncio.get_event_loop().time() - send_time
-        error_detail = type(e).__name__
+        # 3. Harvest results
+        while True:
+            num_q, ok_list, err_list = multi.info_read()
+            for c in ok_list:
+                handle_result(c, "success", active_handles, multi)
+                processed += 1
+            for c, errno, errmsg in err_list:
+                handle_result(c, f"XATOLIK:{errmsg}", active_handles, multi)
+                processed += 1
+            if num_q == 0:
+                break
+        
+        # Speed Optimization: Using a much smaller sleep for tighter loops
+        multi.select(0.01)
 
-    # Print live log
-    if status_msg == "success":
-        print(f"{SUCCESS}[OK]{RESET} {HIGHLIGHT}#{request_id}{RESET} {MUTED}{latency:.4f}s{RESET} STATUS={status_code} {Fore.LIGHTCYAN_EX}{target_ip}:{target_port}{Fore.RESET}")
+    # FINAL PERFORMANCE LOG
+    end_bench = time.perf_counter()
+    total_time = end_bench - start_bench
+    rps = total_reqs / total_time
+    print('\n')
+    print(f"{HIGHLIGHT}TEST COMPLETE{Style.RESET_ALL}")
+    print(f"{INFO}Total Time:    {total_time:.2f} seconds")
+    print(f"{INFO}Total Reqs:    {total_reqs}")
+    print(f"{BRIGHT_GREEN if rps > 1000 else SUCCESS}AVG SPEED:     {rps:.2f} requests/sec")
+    print('\n')
+
+def handle_result(c, status, active_handles, multi):
+    latency = time.perf_counter() - c.start_time
+    req_id = active_handles.pop(c)
+    http_code = c.getinfo(pycurl.HTTP_CODE)
+
+    if status == "success":
+        sys.stdout.write(f"{SUCCESS}[+]{Style.RESET_ALL} #{req_id:05} {MUTED}{latency:.4f}s{Style.RESET_ALL} STATUS={http_code}\n")
     else:
-        print(f"{ERROR}[XATO]{RESET} {HIGHLIGHT}#{request_id}{RESET} {MUTED}{latency:.4f}s{RESET} {ERROR}{error_detail}{RESET}")
+        sys.stdout.write(f"{ERROR}[-]{Style.RESET_ALL} #{req_id:05} {ERROR}{status}{Style.RESET_ALL}\n")
 
     stats_data.append({
-        "request_id": request_id,
+        "request_id": req_id,
         "timestamp": datetime.now().strftime("%H:%M:%S.%f"),
         "latency_sec": round(latency, 4),
-        "bytes_sent": sent_len,
-        "http_status": status_code,
-        "outcome": status_msg,
-        "error_type": error_detail
+        "http_status": http_code,
+        "outcome": "success" if status == "success" else "failed"
     })
+    
+    multi.remove_handle(c)
+    c.close()
 
-# Save CSV
 def save_to_csv(filename):
-    if not stats_data:
-        print(ERROR + "Ma'lumot topilmadi!")
-        return
+    if not stats_data: return
     keys = stats_data[0].keys()
     with open(filename, 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=keys)
         writer.writeheader()
         writer.writerows(stats_data)
-    print(f"{SUCCESS}SAQLANDI:{RESET} {HIGHLIGHT}{filename}{RESET}")
+    print(f"{SUCCESS}DATA SAVED TO: {HIGHLIGHT}{filename}")
 
-# Main async runner
-async def main(target_ip, target_port, num_requests):
-    tasks = [send_request(i, target_ip, target_port) for i in range(num_requests)]
-    await asyncio.gather(*tasks)
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--ip", required=True)
+    parser.add_argument("--port", type=int, default=80)
+    parser.add_argument("--requests", type=int, default=100)
+    parser.add_argument("--output", default="result.csv")
+    args, _ = parser.parse_known_args()
 
-import argparse
-parser = argparse.ArgumentParser(description="Async Network Tester")
-parser.add_argument("--ip", required=True)
-parser.add_argument("--port", type=int, default=80)
-parser.add_argument("--requests", type=int, default=100)
-parser.add_argument("--output", default="result.csv")
-args, unknown = parser.parse_known_args()
-asyncio.run(main(args.ip, args.port, args.requests))
-save_to_csv(args.output)
+    BRIGHT_GREEN = "\033[38;5;82m"
+    print_banner()
+    try:
+        run_stress_test(args.ip, args.port, args.requests)
+    except KeyboardInterrupt:
+        print(f"\n{ERROR}Manual Stop Triggered.")
+    finally:
+        save_to_csv(args.output)
