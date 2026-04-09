@@ -1,75 +1,44 @@
-# 🚀 Modulo DDOS (Async Network Tester)
+# 🚀 Modulo DDoS
 
-Oddiy va tezkor **async network tester**. Serverga bir nechta so‘rov yuborib, javob vaqtini (latency), status kodlarni va xatoliklarni tahlil qiladi.
+**Modulo DDoS** — bu Python va PycURL asosida yaratilgan yuqori tezlikdagi stress-test vositasi. U HTTP serverlarining yuklanishga chidamliligini sinash uchun mo'ljallangan.
+
+![Python](https://img.shields.io/badge/Python-3.8%2B-blue)
+![License](https://img.shields.io/badge/License-MIT-green)
+![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS-lightgrey)
 
 ---
 
-## 📦 O‘rnatish (Installation)
+## ⚡ Xususiyatlari
 
-Avval kerakli kutubxonalarni o‘rnatib oling:
+- **Yuqori tezlik** – Bir vaqtning o'zida 800 tagacha ulanish
+- **HTTP Pipelining** – So'rovlar navbatini optimallashtirish
+- **Real-vaqt statistikasi** – Har bir so'rov holati va kechikish vaqti
+- **CSV hisobot** – Barcha natijalarni faylga saqlash
+- **Rangli interfeys** – Terminalda qulay kuzatish imkoniyati
+
+---
+
+## 📦 O'rnatish
 
 ```bash
-pip install -r requirements.txt
+# Repositoriyani klonlash
+git clone https://github.com/username/modulo-ddos.git
+cd modulo-ddos
+pip install pycurl certifi colorama
 ```
 
----
-
-## ⚙️ Foydalanish (Usage)
-
-Quyidagi buyruq orqali ishga tushirasiz:
-
-```powershell
-python .\main.py --ip=127.0.0.1 --port=80 --requests=1000
+## 🔧 Foydalanish
+```bash
+python modulo.py --ip <IP-manzil> --port <PORT> --requests <SONI> --output <FAYL>
 ```
+| Parametr   | Tavsif              | Standart     |
+|------------|---------------------|--------------|
+| --ip       | Nishon IP manzili   | Majburiy     |
+| --port     | Nishon porti        | 80           |
+| --requests | So'rovlar soni      | 100          |
+| --output   | CSV hisobot fayli   | result.csv   |
 
----
-
-## 📌 Parametrlar
-
-| Parametr     | Tavsif                                       |
-| ------------ | -------------------------------------------- |
-| `--ip`       | Maqsad IP manzil                             |
-| `--port`     | Port (default: 80)                           |
-| `--requests` | Yuboriladigan so‘rovlar soni                 |
-| `--output`   | Natijani saqlash fayli (default: result.csv) |
-
----
-
-## 📊 Natija
-
-Dastur ishlagandan so‘ng:
-
-* Terminalda live log chiqadi
-* Natijalar `.csv` faylga saqlanadi
-
-CSV ichida:
-
-* request_id
-* timestamp
-* latency
-* bytes_sent
-* http_status
-* outcome
-* error_type
-
----
-
-## ⚠️ Ogohlantirish
-
-Bu dastur faqat:
-
-* test qilish
-* o‘rganish
-* o‘z serveringizni tekshirish
-
-uchun mo‘ljallangan.
-
-Begona serverlarga ruxsatsiz ishlatish tavsiya etilmaydi ❗
-
----
-
-## 👨‍💻 Muallif
-
-**Qudratillo Salohiddinov**
-
----
+# Misol
+```bash
+python modulo.py --ip 192.168.1.1 --port 8080 --requests 1000 --output test.csv
+```
