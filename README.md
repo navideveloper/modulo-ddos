@@ -29,7 +29,7 @@ pip install pycurl certifi colorama
 
 ## 🔧 Foydalanish
 ```bash
-python modulo.py --ip <IP-manzil> --port <PORT> --requests <SONI> --output <FAYL>
+python main.py --ip <IP-manzil> --port <PORT> --requests <SONI> --output <FAYL>
 ```
 | Parametr   | Tavsif              | Standart     |
 |------------|---------------------|--------------|
@@ -40,5 +40,5 @@ python modulo.py --ip <IP-manzil> --port <PORT> --requests <SONI> --output <FAYL
 
 # Misol
 ```bash
-python modulo.py --ip 192.168.1.1 --port 8080 --requests 1000 --output test.csv
+python main.py --ip 192.168.1.1 --port 8080 --requests 1000 --output test.csv
 ```
