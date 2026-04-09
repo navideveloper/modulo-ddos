@@ -21,10 +21,10 @@
 ## 📦 O'rnatish
 
 ```bash
-# Repositoriyani klonlash
-git clone https://github.com/username/modulo-ddos.git
+git clone https://github.com/navideveloper/modulo-ddos.git
 cd modulo-ddos
 pip install pycurl certifi colorama
+
 ```
 
 ## 🔧 Foydalanish
