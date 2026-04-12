@@ -23,7 +23,7 @@
 ```bash
 git clone https://github.com/navideveloper/modulo-ddos.git
 cd modulo-ddos
-pip install pycurl certifi colorama
+pip install -r requirements.txt
 
 ```
 
